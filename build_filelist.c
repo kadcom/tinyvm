@@ -2,6 +2,11 @@
  * File list builder for RISCVEMU network filesystem
  * 
  * Copyright (c) 2017 Fabrice Bellard
+ * Copyright (c) 2026 PT Baris Inovasi Ceria
+ *
+ * Modifications by PT Baris Inovasi Ceria are licensed under the
+ * GNU Affero General Public License v3.0 only (AGPL-3.0-only, see
+ * LICENSE). The original code remains under the MIT licence below.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +39,11 @@
 #include <dirent.h>
 #include <errno.h>
 #include <sys/sysmacros.h>
+
+#ifdef __APPLE__
+/* macOS names the struct stat timespec fields st_[amc]timespec */
+#define st_mtim st_mtimespec
+#endif
 
 #include "cutils.h"
 #include "fs_utils.h"

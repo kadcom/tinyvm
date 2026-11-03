@@ -1,0 +1,9 @@
+# TinyEMU: native temu (Linux, macOS) and the WebAssembly build for the browser.
+# Copyright (c) 2026 PT Baris Inovasi Ceria
+# SPDX-License-Identifier: AGPL-3.0-only
+module(name = "tinyemu", version = "2019.12.21")
+
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "rules_cc", version = "0.2.16")
+bazel_dep(name = "apple_support", version = "2.9.1", repo_name = "build_bazel_apple_support")
+

@@ -1,0 +1,119 @@
+# TinyEMU build.
+# Copyright (c) 2026 PT Baris Inovasi Ceria
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+#   bazel build //:temu                 native emulator (Linux, macOS)
+#   bazel build //:splitimg //:build_filelist
+
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
+
+COPTS = [
+    "-O2",
+    "-g",
+    "-Wall",
+    "-Wno-unused-but-set-variable",
+    "-fno-strict-aliasing",
+    # the macOS toolchain defines DEBUG in fastbuild; slirp uses it for tracing
+    "-UDEBUG",
+]
+
+DEFINES = [
+    "_FILE_OFFSET_BITS=64",
+    "_LARGEFILE_SOURCE",
+    "_GNU_SOURCE",
+    "CONFIG_VERSION=\\\"2019-12-21\\\"",
+]
+
+# All headers; the *_template.h files are included several times on purpose.
+cc_library(
+    name = "headers",
+    hdrs = glob(["*.h"], exclude = ["*_template*.h"]),
+    textual_hdrs = glob(["*_template*.h"]),
+)
+
+# macOS shims for Linux-only headers (see compat/).
+cc_library(
+    name = "compat",
+    hdrs = glob(["compat/**/*.h"]),
+    includes = ["compat"],
+)
+
+HOST_DEPS = [":headers"] + select({
+    "@platforms//os:macos": [":compat"],
+    "//conditions:default": [],
+})
+
+# ---------------------------------------------------------------- native
+
+[cc_library(
+    name = "riscv_cpu%d" % xlen,
+    srcs = ["riscv_cpu.c"],
+    copts = COPTS,
+    local_defines = DEFINES + [
+        "MAX_XLEN=%d" % xlen,
+        "CONFIG_RISCV_MAX_XLEN=128",
+    ],
+    deps = HOST_DEPS,
+) for xlen in [32, 64, 128]]
+
+cc_library(
+    name = "slirp",
+    srcs = glob(["slirp/*.c"]),
+    hdrs = glob(["slirp/*.h"]),
+    copts = COPTS + ["-Wno-unused-variable"],
+    local_defines = DEFINES + ["CONFIG_SLIRP"],
+    deps = HOST_DEPS,
+)
+
+cc_binary(
+    name = "temu",
+    srcs = [
+        "cutils.c",
+        "fs.c",
+        "fs_disk.c",
+        "goldfish_rtc.c",
+        "iomem.c",
+        "json.c",
+        "machine.c",
+        "pci.c",
+        "riscv_machine.c",
+        "simplefb.c",
+        "softfp.c",
+        "temu.c",
+        "uart16550.c",
+        "virtio.c",
+    ],
+    copts = COPTS,
+    local_defines = DEFINES + [
+        "CONFIG_SLIRP",
+        "CONFIG_RISCV_MAX_XLEN=128",
+    ],
+    deps = HOST_DEPS + [
+        ":riscv_cpu32",
+        ":riscv_cpu64",
+        ":riscv_cpu128",
+        ":slirp",
+    ],
+)
+
+# Tools for the HTTP block device and the network filesystem.
+cc_binary(
+    name = "splitimg",
+    srcs = ["splitimg.c"],
+    copts = COPTS,
+    local_defines = DEFINES,
+)
+
+cc_binary(
+    name = "build_filelist",
+    srcs = [
+        "build_filelist.c",
+        "cutils.c",
+        "fs_utils.c",
+    ],
+    copts = COPTS,
+    linkopts = ["-lm"],
+    local_defines = DEFINES,
+    deps = HOST_DEPS,
+)
+

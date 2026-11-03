@@ -1,0 +1,8 @@
+bazel-*
+user.bazelrc
+MODULE.bazel.lock
+*.o
+*.d
+/temu
+/splitimg
+/build_filelist
