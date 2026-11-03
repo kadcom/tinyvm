@@ -40,6 +40,14 @@ CONFIG_INT128=y
 # user space network redirector
 CONFIG_SLIRP=y
 
+# macOS host: no librt, Linux-only headers are shimmed in compat/, and the
+# optional parts that need extra libraries (FS_NET, SDL) are off.
+ifeq ($(shell uname -s),Darwin)
+CONFIG_MACOS=y
+CONFIG_FS_NET=
+CONFIG_SDL=
+endif
+
 ifdef CONFIG_WIN32
 CROSS_PREFIX=i686-w64-mingw32-
 EXE=.exe
@@ -52,6 +60,9 @@ STRIP=$(CROSS_PREFIX)strip
 CFLAGS=-O2 -Wall -g -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -MMD
 CFLAGS+=-D_GNU_SOURCE -DCONFIG_VERSION=\"$(shell cat VERSION)\"
 LDFLAGS=
+ifdef CONFIG_MACOS
+CFLAGS+=-Icompat
+endif
 
 bindir=/usr/local/bin
 INSTALL=install
@@ -75,7 +86,9 @@ endif
 
 ifndef CONFIG_WIN32
 EMU_OBJS+=fs_disk.o
+ifndef CONFIG_MACOS
 EMU_LIBS=-lrt
+endif
 endif
 ifdef CONFIG_FS_NET
 CFLAGS+=-DCONFIG_FS_NET
