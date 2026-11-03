@@ -4,6 +4,9 @@ This is where ClairEmu starts.
 
 Written by Didiet Noor.
 
+> **Archive.** This repository is published for reference only. Pull requests and issues are
+> not accepted.
+
 ![Terminal: Debian 13 riscv64 booting on native temu (TinyVM) to the login prompt, then a root shell running uname -a (Linux 6.12.113+deb13-riscv64) and cat /etc/debian_version (13.7)](https://cdn.kadcom.dev/tinyvm/readme/boot-20261103.png)
 
 [Try it live](https://emu.kadcom.dev): ClairEmu, which grew out of this code.
