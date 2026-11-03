@@ -2,6 +2,11 @@
 # TinyEMU
 # 
 # Copyright (c) 2016-2018 Fabrice Bellard
+# Copyright (c) 2026 PT Baris Inovasi Ceria
+#
+# Modifications by PT Baris Inovasi Ceria are licensed under the
+# GNU Affero General Public License v3.0 only (AGPL-3.0-only, see
+# LICENSE). The original code remains under the MIT licence below.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -30,8 +35,6 @@ CONFIG_SDL=y
 # if set, compile the 128 bit emulator. Note: the 128 bit target does
 # not compile if gcc does not support the int128 type (32 bit hosts).
 CONFIG_INT128=y
-# build x86 emulator
-CONFIG_X86EMU=y
 # win32 build (not usable yet)
 #CONFIG_WIN32=y
 # user space network redirector
@@ -98,11 +101,6 @@ EMU_OBJS+=riscv_cpu128.o
 else
 CFLAGS+=-DCONFIG_RISCV_MAX_XLEN=64
 endif
-ifdef CONFIG_X86EMU
-CFLAGS+=-DCONFIG_X86EMU
-EMU_OBJS+=x86_cpu.o x86_machine.o ide.o ps2.o vmmouse.o pckbd.o vga.o
-endif
-
 temu$(EXE): $(EMU_OBJS)
 	$(CC) $(LDFLAGS) -o $@ $^ $(EMU_LIBS)
 

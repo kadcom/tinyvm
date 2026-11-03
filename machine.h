@@ -2,6 +2,11 @@
  * VM definitions
  * 
  * Copyright (c) 2016-2017 Fabrice Bellard
+ * Copyright (c) 2026 PT Baris Inovasi Ceria
+ *
+ * Modifications by PT Baris Inovasi Ceria are licensed under the
+ * GNU Affero General Public License v3.0 only (AGPL-3.0-only, see
+ * LICENSE). The original code remains under the MIT licence below.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -48,7 +53,6 @@ struct FBDevice {
 
 typedef enum {
     VM_FILE_BIOS,
-    VM_FILE_VGA_BIOS,
     VM_FILE_KERNEL,
     VM_FILE_INITRD,
 
@@ -100,7 +104,6 @@ typedef struct {
     int eth_count;
 
     char *cmdline; /* bios or kernel command line */
-    BOOL accel_enable; /* enable acceleration (KVM) */
     char *input_device; /* NULL means no input */
     
     /* kernel, bios and other auxiliary files */
@@ -132,7 +135,6 @@ struct VirtMachineClass {
 };
 
 extern const VirtMachineClass riscv_machine_class;
-extern const VirtMachineClass pc_machine_class;
 
 void __attribute__((format(printf, 1, 2))) vm_error(const char *fmt, ...);
 int vm_get_int(JSONValue obj, const char *name, int *pval);
@@ -183,11 +185,6 @@ void simplefb_refresh(FBDevice *fb_dev,
                       PhysMemoryRange *mem_range,
                       int fb_page_count);
 
-/* vga.c */
-typedef struct VGAState VGAState;
-VGAState *pci_vga_init(PCIBus *bus, FBDevice *fb_dev,
-                       int width, int height,
-                       const uint8_t *vga_rom_buf, int vga_rom_size);
                       
 /* block_net.c */
 BlockDevice *block_device_init_http(const char *url,
