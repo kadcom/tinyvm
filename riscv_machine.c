@@ -2,6 +2,11 @@
  * RISCV machine
  * 
  * Copyright (c) 2016-2017 Fabrice Bellard
+ * Copyright (c) 2026 PT Baris Inovasi Ceria
+ *
+ * Modifications by PT Baris Inovasi Ceria are licensed under the
+ * GNU Affero General Public License v3.0 only (AGPL-3.0-only, see
+ * LICENSE). The original code remains under the MIT licence below.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -657,6 +662,11 @@ static int riscv_build_fdt(RISCVMachine *m, uint8_t *dst,
 
     fdt_begin_node(s, "htif");
     fdt_prop_str(s, "compatible", "ucb,htif0");
+    {
+        /* OpenSBI: reg[0] = fromhost, reg[1] = tohost */
+        uint32_t r[8] = { 0, HTIF_BASE_ADDR + 8, 0, 8, 0, HTIF_BASE_ADDR, 0, 8 };
+        fdt_prop_tab_u32(s, "reg", r, 8);
+    }
     fdt_end_node(s); /* htif */
 
     fdt_begin_node(s, "soc");
