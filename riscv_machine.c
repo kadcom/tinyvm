@@ -633,6 +633,9 @@ static int riscv_build_fdt(RISCVMachine *m, uint8_t *dst,
             *q++ = 'a' + i;
     }
     *q = '\0';
+    /* Linux >= 6.x wants the canonical order (rv64ima...) and no 's'/'u' letters */
+    if (max_xlen == 64)
+        snprintf(isa_string, sizeof(isa_string), "rv64imafdc_zicsr_zifencei");
     fdt_prop_str(s, "riscv,isa", isa_string);
     
     fdt_prop_str(s, "mmu-type", max_xlen <= 32 ? "riscv,sv32" : "riscv,sv48");
