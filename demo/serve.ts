@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //
 // - demo/ files at /
-// - the WebAssembly build (bazel build //:riscvemu64_wasm) at /riscvemu64-wasm.{js,wasm}
+// - the WebAssembly build (bazel build //:tinyvm_wasm) at /riscvemu64-wasm.{js,wasm}
 // - /tinyemu/... forwarded to https://cdn.kadcom.dev/tinyemu/... so that the page and
 //   the disk images share one origin (the CDN sends no CORS headers).
 //   IMAGES_DIR=<dir> serves /tinyemu/... from a local directory instead.
