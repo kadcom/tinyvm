@@ -43,6 +43,10 @@
 #include "virtio.h"
 #include "machine.h"
 #include "uart16550.h"
+#include <unistd.h>
+#ifdef __APPLE__
+#include <sys/random.h> /* getentropy() */
+#endif
 
 /* RISCV machine */
 
@@ -845,6 +849,15 @@ static int riscv_build_fdt(RISCVMachine *m, uint8_t *dst,
     if (initrd_size > 0) {
         fdt_prop_tab_u64(s, "linux,initrd-start", initrd_start);
         fdt_prop_tab_u64(s, "linux,initrd-end", initrd_start + initrd_size);
+    }
+    {
+        /* Seed for the guest RNG: Linux credits /chosen/rng-seed
+           (early_init_dt_scan_chosen -> add_bootloader_randomness), so the
+           CRNG is ready at once instead of after ~100 s of jitter entropy
+           (systemd-random-seed and friends wait for it). */
+        uint8_t seed[64];
+        if (getentropy(seed, sizeof(seed)) == 0)
+            fdt_prop(s, "rng-seed", seed, sizeof(seed));
     }
     
 
