@@ -2,6 +2,11 @@
  * VIRTIO driver
  * 
  * Copyright (c) 2016 Fabrice Bellard
+ * Copyright (c) 2026 PT Baris Inovasi Ceria
+ *
+ * Modifications by PT Baris Inovasi Ceria are licensed under the
+ * GNU Affero General Public License v3.0 only (AGPL-3.0-only, see
+ * LICENSE). The original code remains under the MIT licence below.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -1006,6 +1011,7 @@ typedef struct {
 #define VIRTIO_BLK_T_OUT         1
 #define VIRTIO_BLK_T_FLUSH       4
 #define VIRTIO_BLK_T_FLUSH_OUT   5
+#define VIRTIO_BLK_T_GET_ID      8
 
 #define VIRTIO_BLK_S_OK     0
 #define VIRTIO_BLK_S_IOERR  1
@@ -1109,6 +1115,15 @@ static int virtio_block_recv_request(VIRTIODevice *s, int queue_idx,
         }
         break;
     default:
+        /* Unsupported request (e.g. VIRTIO_BLK_T_GET_ID, which Linux
+           sends when /sys/block/vdX/serial is read): complete it with
+           VIRTIO_BLK_S_UNSUPP instead of never consuming it, otherwise
+           the guest waits forever. */
+        if (write_size >= 1) {
+            uint8_t st = VIRTIO_BLK_S_UNSUPP;
+            memcpy_to_queue(s, queue_idx, desc_idx, write_size - 1, &st, 1);
+        }
+        virtio_consume_desc(s, queue_idx, desc_idx, write_size >= 1 ? 1 : 0);
         break;
     }
     return 0;
