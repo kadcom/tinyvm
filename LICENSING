@@ -1,0 +1,15 @@
+Licensing
+=========
+
+The original TinyEMU 2019-12-21 files by Fabrice Bellard stay under the
+MIT licence (MIT-LICENSE.txt and their file headers). slirp keeps its
+BSD licence.
+
+All changes and new files from this commit on are Copyright (c) 2026
+PT Baris Inovasi Ceria and licensed under the GNU Affero General Public
+License v3.0 only (AGPL-3.0-only, full text in LICENSE). Files we add
+carry "SPDX-License-Identifier: AGPL-3.0-only"; upstream files we change
+carry our copyright line and a note above the original MIT notice,
+which stays in place.
+
+The repository as a whole is distributed under AGPL-3.0-only.
