@@ -2,6 +2,11 @@
  * JS Linux main
  * 
  * Copyright (c) 2017 Fabrice Bellard
+ * Copyright (c) 2026 PT Baris Inovasi Ceria
+ *
+ * Modifications by PT Baris Inovasi Ceria are licensed under the
+ * GNU Affero General Public License v3.0 only (AGPL-3.0-only, see
+ * LICENSE). The original code remains under the MIT licence below.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +34,9 @@ var net_state, net_write_packet, net_set_carrier;
 var display_wheel_event;
 var fs_import_file;
 var Module = {};
+
+/* Debian riscv64 images (HTTP block device format) */
+var DEFAULT_CFG_URL = "tinyemu/v20261103204113/debian.cfg";
 var downloading_timer_pending = false;
 var downloading_timer;
 
@@ -517,7 +525,7 @@ function start_vm(user, pwd)
             net_state = new Ethernet(net_url);
         }
 
-        Module.ccall("vm_start", null, ["string", "number", "string", "string", "number", "number", "number", "string"], [url, mem_size, cmdline, pwd, width, height, (net_state != null) | 0, drive_url]);
+        Module.ccall("vm_start", null, ["string", "number", "string", "string", "number", "number", "number"], [url, mem_size, cmdline, pwd, width, height, (net_state != null) | 0]); /* jsemu.c vm_start() takes 7 arguments */
         pwd = null;
     }
 
@@ -525,15 +533,9 @@ function start_vm(user, pwd)
 
     params = get_params();
     cpu = params["cpu"] || "riscv64";
-    url = params["url"];
-    if (!url) {
-        if (cpu == "x86")
-            url = "root-x86.cfg";
-        else
-            url = "root-riscv64.cfg";
-    }
+    url = params["url"] || DEFAULT_CFG_URL;
     url = get_absolute_url(url);
-    mem_size = (params["mem"] | 0) || 128; /* in mb */
+    mem_size = (params["mem"] | 0) || 512; /* in mb */
     cmdline = params["cmdline"] || "";
     cols = (params["cols"] | 0) || 80;
     rows = (params["rows"] | 0) || 30;
@@ -569,9 +571,6 @@ function start_vm(user, pwd)
 //    console.log("cpu=" + cpu + " url=" + url + " mem=" + mem_size);
 
     switch(cpu) {
-    case "x86":
-        vm_file = "x86emu";
-        break;
     case "riscv64":
     case "riscv":
         vm_file = "riscvemu64";
@@ -590,8 +589,6 @@ function start_vm(user, pwd)
     } else {
         /* set the total memory */
         alloc_size = mem_size;
-        if (cpu == "x86")
-            alloc_size += 16;
         if (graphic_enable) {
             /* frame buffer memory */
             alloc_size += (width * height * 4 + 1048576 - 1) >> 20;
@@ -601,7 +598,8 @@ function start_vm(user, pwd)
         Module.TOTAL_MEMORY = alloc_size << 20;
         vm_url = vm_file + ".js";
     }
-    Module.preRun = start;
+    /* the C runtime must be initialised before vm_start() is called */
+    Module.onRuntimeInitialized = start;
 
     loadScript(vm_url, null);
 }
