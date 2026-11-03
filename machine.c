@@ -305,6 +305,9 @@ static int virt_machine_parse_config(VirtMachineParams *p,
         if (vm_get_str_opt(obj, "device", &str) < 0)
             goto tag_fail;
         p->tab_drive[p->drive_count].device = strdup_null(str);
+        if (vm_get_str_opt(obj, "mode", &str) < 0)
+            goto tag_fail;
+        p->tab_drive[p->drive_count].mode = strdup_null(str);
         p->drive_count++;
     }
 
@@ -592,6 +595,7 @@ void virt_machine_free_config(VirtMachineParams *p)
     for(i = 0; i < p->drive_count; i++) {
         free(p->tab_drive[i].filename);
         free(p->tab_drive[i].device);
+        free(p->tab_drive[i].mode);
     }
     for(i = 0; i < p->fs_count; i++) {
         free(p->tab_fs[i].filename);

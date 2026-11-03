@@ -1013,6 +1013,10 @@ typedef struct {
 #define VIRTIO_BLK_T_FLUSH_OUT   5
 #define VIRTIO_BLK_T_GET_ID      8
 
+/* feature bits (virtio 1.2, 5.2.3) */
+#define VIRTIO_BLK_F_RO          (1 << 5)
+#define VIRTIO_BLK_F_FLUSH       (1 << 9)
+
 #define VIRTIO_BLK_S_OK     0
 #define VIRTIO_BLK_S_IOERR  1
 #define VIRTIO_BLK_S_UNSUPP 2
@@ -1045,7 +1049,9 @@ static void virtio_block_req_end(VIRTIODevice *s, int ret)
             buf1[0] = VIRTIO_BLK_S_IOERR;
         else
             buf1[0] = VIRTIO_BLK_S_OK;
-        memcpy_to_queue(s, queue_idx, desc_idx, 0, buf1, sizeof(buf1));
+        /* the status byte is the last byte of the device-writable part */
+        memcpy_to_queue(s, queue_idx, desc_idx, s1->req.write_size - 1,
+                        buf1, sizeof(buf1));
         virtio_consume_desc(s, queue_idx, desc_idx, 1);
         break;
     default:
@@ -1100,7 +1106,14 @@ static int virtio_block_recv_request(VIRTIODevice *s, int queue_idx,
         }
         break;
     case VIRTIO_BLK_T_OUT:
-        assert(write_size >= 1);
+        if (write_size < 1)
+            return 0; /* malformed: no status byte */
+        s1->req.write_size = write_size;
+        if (bs->read_only) {
+            /* 5.2.6.2: writes to a VIRTIO_BLK_F_RO device fail */
+            virtio_block_req_end(s, -1);
+            break;
+        }
         len = read_size - sizeof(h);
         buf = malloc(len);
         memcpy_from_queue(s, buf, queue_idx, desc_idx, sizeof(h), len);
@@ -1112,6 +1125,17 @@ static int virtio_block_recv_request(VIRTIODevice *s, int queue_idx,
             s1->req_in_progress = TRUE;
         } else {
             virtio_block_req_end(s, ret);
+        }
+        break;
+    case VIRTIO_BLK_T_FLUSH:
+        if (write_size < 1)
+            return 0;
+        {
+            uint8_t st = VIRTIO_BLK_S_OK;
+            if (bs->flush && bs->flush(bs) < 0)
+                st = VIRTIO_BLK_S_IOERR;
+            memcpy_to_queue(s, queue_idx, desc_idx, write_size - 1, &st, 1);
+            virtio_consume_desc(s, queue_idx, desc_idx, 1);
         }
         break;
     default:
@@ -1138,7 +1162,12 @@ VIRTIODevice *virtio_block_init(VIRTIOBusDef *bus, BlockDevice *bs)
     virtio_init(&s->common, bus,
                 2, 8, virtio_block_recv_request);
     s->bs = bs;
-    
+    /* RO only for read-only drives (virtblk_probe() then marks the disk
+       read-only); FLUSH so the guest can make the upper/overlay disk durable */
+    s->common.device_features = VIRTIO_BLK_F_FLUSH;
+    if (bs->read_only)
+        s->common.device_features |= VIRTIO_BLK_F_RO;
+
     nb_sectors = bs->get_sector_count(bs);
     put_le32(s->common.config_space, nb_sectors);
     put_le32(s->common.config_space + 4, nb_sectors >> 32);

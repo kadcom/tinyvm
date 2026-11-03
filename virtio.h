@@ -2,6 +2,11 @@
  * VIRTIO driver
  * 
  * Copyright (c) 2016 Fabrice Bellard
+ * Copyright (c) 2026 PT Baris Inovasi Ceria
+ *
+ * Modifications by PT Baris Inovasi Ceria are licensed under the
+ * GNU Affero General Public License v3.0 only (AGPL-3.0-only, see
+ * LICENSE). The original code remains under the MIT licence below.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -74,6 +79,9 @@ struct BlockDevice {
                        uint64_t sector_num, const uint8_t *buf, int n,
                        BlockDeviceCompletionFunc *cb, void *opaque);
     void *opaque;
+    /* zero/NULL = old behaviour */
+    BOOL read_only;               /* advertised as VIRTIO_BLK_F_RO */
+    int (*flush)(BlockDevice *bs); /* VIRTIO_BLK_T_FLUSH; < 0 on error */
 };
 
 VIRTIODevice *virtio_block_init(VIRTIOBusDef *bus, BlockDevice *bs);

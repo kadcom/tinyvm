@@ -310,6 +310,21 @@ static int bf_write_async(BlockDevice *bs,
     return ret;
 }
 
+/* VIRTIO_BLK_T_FLUSH: make the written data durable in the backing file */
+static int bf_flush(BlockDevice *bs)
+{
+    BlockDeviceFile *bf = bs->opaque;
+    if (bf->mode != BF_MODE_RW)
+        return 0; /* nothing reaches the file in ro/snapshot mode */
+    if (fflush(bf->f) != 0)
+        return -1;
+#ifndef _WIN32
+    if (fsync(fileno(bf->f)) != 0)
+        return -1;
+#endif
+    return 0;
+}
+
 static BlockDevice *block_device_init(const char *filename,
                                       BlockDeviceModeEnum mode)
 {
@@ -349,6 +364,8 @@ static BlockDevice *block_device_init(const char *filename,
     bs->get_sector_count = bf_get_sector_count;
     bs->read_async = bf_read_async;
     bs->write_async = bf_write_async;
+    bs->read_only = (mode == BF_MODE_RO);
+    bs->flush = bf_flush;
     return bs;
 }
 
@@ -756,7 +773,21 @@ int main(int argc, char **argv)
         } else
 #endif
         {
-            drive = block_device_init(fname, drive_mode);
+            BlockDeviceModeEnum mode = drive_mode;
+            const char *m = p->tab_drive[i].mode;
+            if (m) {
+                if (!strcmp(m, "ro"))
+                    mode = BF_MODE_RO;
+                else if (!strcmp(m, "rw"))
+                    mode = BF_MODE_RW;
+                else if (!strcmp(m, "snapshot"))
+                    mode = BF_MODE_SNAPSHOT;
+                else {
+                    fprintf(stderr, "drive%d: unknown mode '%s'\n", i, m);
+                    exit(1);
+                }
+            }
+            drive = block_device_init(fname, mode);
         }
         free(fname);
         p->tab_drive[i].block_dev = drive;

@@ -69,6 +69,7 @@ typedef struct {
     char *device;
     char *filename;
     BlockDevice *block_dev;
+    char *mode; /* "ro", "rw", "snapshot" or NULL (command line default) */
 } VMDriveEntry;
 
 typedef struct {
