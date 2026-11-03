@@ -569,13 +569,11 @@ int fdt_output(FDTState *s, uint8_t *dst)
     h->size_dt_strings = cpu_to_be32(dt_strings_size);
     h->size_dt_struct = cpu_to_be32(dt_struct_size);
 
+    /* DTSpec 5.1 block order: header, memory reservation block (8-byte
+       aligned), structure block, strings block. libfdt (OpenSBI's
+       fdt_open_into) can only grow a blob in place when it is in this
+       order. */
     pos = sizeof(struct fdt_header);
-
-    h->off_dt_struct = cpu_to_be32(pos);
-    memcpy(dst + pos, s->tab, dt_struct_size);
-    pos += dt_struct_size;
-
-    /* align to 8 */
     while ((pos & 7) != 0) {
         dst[pos++] = 0;
     }
@@ -584,6 +582,10 @@ int fdt_output(FDTState *s, uint8_t *dst)
     re->address = 0; /* no reserved entry */
     re->size = 0;
     pos += sizeof(struct fdt_reserve_entry);
+
+    h->off_dt_struct = cpu_to_be32(pos);
+    memcpy(dst + pos, s->tab, dt_struct_size);
+    pos += dt_struct_size;
 
     h->off_dt_strings = cpu_to_be32(pos);
     memcpy(dst + pos, s->string_table, dt_strings_size);
