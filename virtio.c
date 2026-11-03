@@ -98,7 +98,7 @@
 
 #define MAX_QUEUE 8
 #define MAX_CONFIG_SPACE_SIZE 256
-#define MAX_QUEUE_NUM 16
+#define MAX_QUEUE_NUM 256 /* power of two; Linux virtio_net needs > 19 free TX slots */
 
 typedef struct {
     uint32_t ready; /* 0 or 1 */
@@ -748,7 +748,7 @@ static void virtio_mmio_write(void *opaque, uint32_t offset,
                 s->queue_sel = val;
             break;
         case VIRTIO_MMIO_QUEUE_NUM:
-            if ((val & (val - 1)) == 0 && val > 0) {
+            if ((val & (val - 1)) == 0 && val > 0 && val <= MAX_QUEUE_NUM) {
                 s->queue[s->queue_sel].num = val;
             }
             break;
@@ -939,7 +939,7 @@ static void virtio_pci_write(void *opaque, uint32_t offset1,
                     s->queue_sel = val;
                 break;
             case VIRTIO_PCI_QUEUE_SIZE:
-                if ((val & (val - 1)) == 0 && val > 0) {
+                if ((val & (val - 1)) == 0 && val > 0 && val <= MAX_QUEUE_NUM) {
                     s->queue[s->queue_sel].num = val;
                 }
                 break;
