@@ -649,8 +649,8 @@ static void glue(riscv_cpu_flush_tlb_write_range_ram,
                       MSTATUS_FS | \
                       MSTATUS_MPRV | MSTATUS_SUM | MSTATUS_MXR)
 
-/* cycle and insn counters */
-#define COUNTEREN_MASK ((1 << 0) | (1 << 2))
+/* CY, TM and IR counter enable bits */
+#define COUNTEREN_MASK ((1 << 0) | (1 << 1) | (1 << 2))
 
 /* return the complete mstatus with the SD bit */
 static target_ulong get_mstatus(RISCVCPUState *s, target_ulong mask)
@@ -747,6 +747,28 @@ static int csr_read(RISCVCPUState *s, target_ulong *pval, uint32_t csr,
             }
         }
         val = (int64_t)s->insn_counter;
+        break;
+    case 0xc01: /* time */
+    case 0xc81: /* timeh */
+        if (csr == 0xc81 && s->cur_xlen != 32)
+            goto invalid_csr;
+        {
+            uint32_t counteren;
+            uint64_t t;
+            if (s->priv < PRV_M) {
+                if (s->priv < PRV_S)
+                    counteren = s->scounteren;
+                else
+                    counteren = s->mcounteren;
+                if (((counteren >> 1) & 1) == 0)
+                    goto invalid_csr;
+            }
+            t = riscv_cpu_time_cb ? riscv_cpu_time_cb(riscv_cpu_time_opaque) : 0;
+            if (csr == 0xc81)
+                val = (int64_t)(int32_t)(t >> 32);
+            else
+                val = (int64_t)t;
+        }
         break;
     case 0xc80: /* mcycleh */
     case 0xc82: /* minstreth */

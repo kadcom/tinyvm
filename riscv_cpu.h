@@ -2,6 +2,11 @@
  * RISCV CPU emulator
  * 
  * Copyright (c) 2016-2017 Fabrice Bellard
+ * Copyright (c) 2026 PT Baris Inovasi Ceria
+ *
+ * Modifications by PT Baris Inovasi Ceria are licensed under the
+ * GNU Affero General Public License v3.0 only (AGPL-3.0-only, see
+ * LICENSE). The original code remains under the MIT licence below.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -62,6 +67,10 @@ typedef struct {
 } RISCVCPUCommonState;
 
 int riscv_cpu_get_max_xlen(void);
+
+/* 'time' CSR source (same counter as the CLINT mtime) */
+extern uint64_t (*riscv_cpu_time_cb)(void *opaque);
+extern void *riscv_cpu_time_opaque;
 
 extern const RISCVCPUClass riscv_cpu_class32;
 extern const RISCVCPUClass riscv_cpu_class64;

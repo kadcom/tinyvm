@@ -92,6 +92,9 @@ static uint64_t rtc_get_real_time(RISCVMachine *s)
         (ts.tv_nsec / (1000000000 / RTC_FREQ));
 }
 
+uint64_t (*riscv_cpu_time_cb)(void *opaque);
+void *riscv_cpu_time_opaque;
+
 static uint64_t rtc_get_time(RISCVMachine *m)
 {
     uint64_t val;
@@ -868,6 +871,8 @@ static VirtMachine *riscv_machine_init(const VirtMachineParams *p)
     s->mem_map->flush_tlb_write_range = riscv_flush_tlb_write_range;
 
     s->cpu_state = riscv_cpu_init(s->mem_map, max_xlen);
+    riscv_cpu_time_cb = (uint64_t (*)(void *))rtc_get_time;
+    riscv_cpu_time_opaque = s;
     if (!s->cpu_state) {
         vm_error("unsupported max_xlen=%d\n", max_xlen);
         /* XXX: should free resources */
