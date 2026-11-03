@@ -4,7 +4,9 @@
 #
 #   bazel build //:temu                 native emulator (Linux, macOS)
 #   bazel build //:splitimg //:build_filelist
+#   bazel build //:riscvemu64_wasm      js/riscvemu64-wasm.js + .wasm for the browser
 
+load("@emsdk//emscripten_toolchain:wasm_rules.bzl", "wasm_cc_binary")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
 
 COPTS = [
@@ -117,3 +119,91 @@ cc_binary(
     deps = HOST_DEPS,
 )
 
+# ---------------------------------------------------------------- WebAssembly
+
+WASM_DEFINES = DEFINES + [
+    "EMSCRIPTEN=1",
+    "CONFIG_FS_NET",
+    "MAX_XLEN=64",
+    "CONFIG_RISCV_MAX_XLEN=64",
+]
+
+WASM_EXPORTS = [
+    "_console_queue_char",
+    "_vm_start",
+    "_fs_import_file",
+    "_display_key_event",
+    "_display_mouse_event",
+    "_display_wheel_event",
+    "_net_write_packet",
+    "_net_set_carrier",
+    "_malloc",
+    "_free",
+]
+
+cc_binary(
+    name = "riscvemu64_bin",
+    srcs = [
+        "aes.c",
+        "block_net.c",
+        "cutils.c",
+        "fs.c",
+        "fs_net.c",
+        "fs_utils.c",
+        "fs_wget.c",
+        "goldfish_rtc.c",
+        "iomem.c",
+        "json.c",
+        "jsemu.c",
+        "machine.c",
+        "pci.c",
+        "riscv_cpu.c",
+        "riscv_machine.c",
+        "sha256.c",
+        "simplefb.c",
+        "softfp.c",
+        "uart16550.c",
+        "virtio.c",
+    ],
+    additional_linker_inputs = ["js/lib.js"],
+    copts = COPTS + ["-fsigned-char"],
+    features = ["-precise_long_double_printf"],
+    linkopts = [
+        "--js-library",
+        "$(location js/lib.js)",
+        "-sEXPORTED_FUNCTIONS=" + ",".join(WASM_EXPORTS),
+        "-sEXPORTED_RUNTIME_METHODS=ccall,cwrap",
+        "-sINITIAL_MEMORY=64MB",
+        "-sALLOW_MEMORY_GROWTH=1",
+        "-sMAXIMUM_MEMORY=4GB",
+        "-sFILESYSTEM=0",
+        "-sENVIRONMENT=web",
+    ],
+    local_defines = WASM_DEFINES,
+    tags = ["manual"],
+    deps = [":headers"],
+)
+
+wasm_cc_binary(
+    name = "riscvemu64_raw",
+    cc_target = ":riscvemu64_bin",
+    outputs = [
+        "raw/riscvemu64_bin.js",
+        "raw/riscvemu64_bin.wasm",
+    ],
+    tags = ["manual"],
+)
+
+# The upstream page loads riscvemu64-wasm.js, which loads riscvemu64-wasm.wasm.
+genrule(
+    name = "riscvemu64_wasm",
+    srcs = [":riscvemu64_raw"],
+    outs = [
+        "js/riscvemu64-wasm.js",
+        "js/riscvemu64-wasm.wasm",
+    ],
+    cmd = "for f in $(SRCS); do case $$f in " +
+          "*.js) sed -e 's/riscvemu64_bin\\.wasm/riscvemu64-wasm.wasm/g' $$f > $(location js/riscvemu64-wasm.js);; " +
+          "*.wasm) cp $$f $(location js/riscvemu64-wasm.wasm);; esac; done",
+    tags = ["manual"],
+)

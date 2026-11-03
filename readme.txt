@@ -165,8 +165,8 @@ should use the VirtIO console.
 
 4.4) Javascript version
 
-The Javascript version (JSLinux) can be compiled with Makefile.js and
-emscripten. A complete precompiled and preconfigured demo is available
+The Javascript version (JSLinux) is built with Bazel and emscripten
+(bazel build //:riscvemu64_wasm, see README.md). A complete precompiled and preconfigured demo is available
 in the jslinux-yyyy-mm-dd.tar.gz archive (read the readme.txt file
 inside the archive).
 
