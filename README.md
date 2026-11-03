@@ -54,6 +54,19 @@ build (`vm_start`, `console_queue_char`, ...) and loads files and disks over HTT
 `Makefile` is kept for a native build with the optional network filesystem (libcurl) and SDL
 display.
 
+## Browser demo
+
+`demo/` is the upstream JSLinux page set up to boot Debian riscv64 with the WebAssembly build:
+
+```sh
+bazel build //:tinyvm_wasm
+bun demo/serve.ts            # http://localhost:8080
+```
+
+`serve.ts` serves the page and the WebAssembly build, and forwards `/tinyemu/...` to
+`cdn.kadcom.dev`, where the Debian image from `demo/debian.cfg` is hosted, so the page and the
+disk share one origin. `IMAGES_DIR=<dir>` serves the images from a local directory instead.
+
 ## Boot your own Debian image
 
 You need the OpenSBI firmware (`firmware/fw_jump.bin`), a Debian riscv64 kernel and initrd
