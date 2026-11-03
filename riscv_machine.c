@@ -58,6 +58,9 @@ typedef struct RISCVMachine {
     uint64_t timecmp;
     /* PLIC */
     uint32_t plic_pending_irq, plic_served_irq;
+    uint8_t plic_priority[32];
+    uint8_t plic_threshold[2];
+    uint32_t plic_enable[2]; /* bit i = source i + 1 */
     IRQSignal plic_irq[32]; /* IRQ 0 is not used */
     /* HTIF */
     uint64_t htif_tohost, htif_fromhost;
@@ -259,45 +262,89 @@ static void clint_write(void *opaque, uint32_t offset, uint32_t val,
     }
 }
 
+/*
+ * PLIC (RISC-V PLIC spec 1.0.0): 31 sources, 2 contexts for the single
+ * hart: context 0 = S-mode external interrupt (SEIP), context 1 = M-mode
+ * (MEIP), matching the order of "interrupts-extended" in the device tree.
+ * Sources are level-triggered: plic_pending_irq mirrors the device lines,
+ * a claimed source is "in service" (plic_served_irq) and is not presented
+ * again until the claim is completed.
+ */
+#define PLIC_NUM_CTX        2
+#define PLIC_PRIORITY_BASE  0x000000
+#define PLIC_PENDING_BASE   0x001000
+#define PLIC_ENABLE_BASE    0x002000
+#define PLIC_ENABLE_STRIDE  0x80
+#define PLIC_HART_BASE      0x200000
+#define PLIC_HART_SIZE      0x1000
+
+/* best claimable source of a context, 0 if none */
+static int plic_best_irq(RISCVMachine *s, int ctx)
+{
+    uint32_t mask;
+    int i, best = 0, best_prio = 0;
+
+    mask = s->plic_pending_irq & ~s->plic_served_irq & s->plic_enable[ctx];
+    while (mask != 0) {
+        i = ctz32(mask);
+        mask &= mask - 1;
+        /* bit i is source i + 1; priority must exceed the threshold */
+        if (s->plic_priority[i + 1] > s->plic_threshold[ctx] &&
+            s->plic_priority[i + 1] > best_prio) {
+            best_prio = s->plic_priority[i + 1];
+            best = i + 1;
+        }
+    }
+    return best;
+}
+
 static void plic_update_mip(RISCVMachine *s)
 {
     RISCVCPUState *cpu = s->cpu_state;
-    uint32_t mask;
-    mask = s->plic_pending_irq & ~s->plic_served_irq;
-    if (mask) {
-        riscv_cpu_set_mip(cpu, MIP_MEIP | MIP_SEIP);
-    } else {
-        riscv_cpu_reset_mip(cpu, MIP_MEIP | MIP_SEIP);
-    }
+    if (plic_best_irq(s, 0))
+        riscv_cpu_set_mip(cpu, MIP_SEIP);
+    else
+        riscv_cpu_reset_mip(cpu, MIP_SEIP);
+    if (plic_best_irq(s, 1))
+        riscv_cpu_set_mip(cpu, MIP_MEIP);
+    else
+        riscv_cpu_reset_mip(cpu, MIP_MEIP);
 }
-
-#define PLIC_HART_BASE 0x200000
-#define PLIC_HART_SIZE 0x1000
 
 static uint32_t plic_read(void *opaque, uint32_t offset, int size_log2)
 {
     RISCVMachine *s = opaque;
-    uint32_t val, mask;
-    int i;
+    uint32_t val = 0;
+    int ctx, irq;
+
     assert(size_log2 == 2);
-    switch(offset) {
-    case PLIC_HART_BASE:
-        val = 0;
-        break;
-    case PLIC_HART_BASE + 4:
-        mask = s->plic_pending_irq & ~s->plic_served_irq;
-        if (mask != 0) {
-            i = ctz32(mask);
-            s->plic_served_irq |= 1 << i;
-            plic_update_mip(s);
-            val = i + 1;
-        } else {
-            val = 0;
+    if (offset < PLIC_PENDING_BASE) {
+        irq = offset >> 2;
+        if (irq >= 1 && irq < 32)
+            val = s->plic_priority[irq];
+    } else if (offset == PLIC_PENDING_BASE) {
+        val = (s->plic_pending_irq & ~s->plic_served_irq) << 1;
+    } else if (offset >= PLIC_ENABLE_BASE &&
+               offset < PLIC_ENABLE_BASE + PLIC_NUM_CTX * PLIC_ENABLE_STRIDE) {
+        ctx = (offset - PLIC_ENABLE_BASE) / PLIC_ENABLE_STRIDE;
+        if (((offset - PLIC_ENABLE_BASE) % PLIC_ENABLE_STRIDE) == 0)
+            val = s->plic_enable[ctx] << 1;
+    } else if (offset >= PLIC_HART_BASE &&
+               offset < PLIC_HART_BASE + PLIC_NUM_CTX * PLIC_HART_SIZE) {
+        ctx = (offset - PLIC_HART_BASE) / PLIC_HART_SIZE;
+        switch ((offset - PLIC_HART_BASE) % PLIC_HART_SIZE) {
+        case 0: /* threshold */
+            val = s->plic_threshold[ctx];
+            break;
+        case 4: /* claim */
+            irq = plic_best_irq(s, ctx);
+            if (irq) {
+                s->plic_served_irq |= 1 << (irq - 1);
+                plic_update_mip(s);
+            }
+            val = irq;
+            break;
         }
-        break;
-    default:
-        val = 0;
-        break;
     }
     return val;
 }
@@ -306,19 +353,36 @@ static void plic_write(void *opaque, uint32_t offset, uint32_t val,
                        int size_log2)
 {
     RISCVMachine *s = opaque;
-    
+    int ctx, irq;
+
     assert(size_log2 == 2);
-    switch(offset) {
-    case PLIC_HART_BASE + 4:
-        val--;
-        if (val < 32) {
-            s->plic_served_irq &= ~(1 << val);
-            plic_update_mip(s);
+    if (offset < PLIC_PENDING_BASE) {
+        irq = offset >> 2;
+        if (irq >= 1 && irq < 32)
+            s->plic_priority[irq] = val & 7;
+    } else if (offset >= PLIC_ENABLE_BASE &&
+               offset < PLIC_ENABLE_BASE + PLIC_NUM_CTX * PLIC_ENABLE_STRIDE) {
+        ctx = (offset - PLIC_ENABLE_BASE) / PLIC_ENABLE_STRIDE;
+        if (((offset - PLIC_ENABLE_BASE) % PLIC_ENABLE_STRIDE) == 0)
+            s->plic_enable[ctx] = val >> 1; /* source 0 does not exist */
+    } else if (offset >= PLIC_HART_BASE &&
+               offset < PLIC_HART_BASE + PLIC_NUM_CTX * PLIC_HART_SIZE) {
+        ctx = (offset - PLIC_HART_BASE) / PLIC_HART_SIZE;
+        switch ((offset - PLIC_HART_BASE) % PLIC_HART_SIZE) {
+        case 0: /* threshold */
+            s->plic_threshold[ctx] = val & 7;
+            break;
+        case 4: /* complete: ignored if the source is not enabled for this
+                   context (plic_irq_eoi() in Linux relies on this) */
+            if (val >= 1 && val < 32 &&
+                (s->plic_enable[ctx] & (1 << (val - 1))))
+                s->plic_served_irq &= ~(1 << (val - 1));
+            break;
         }
-        break;
-    default:
-        break;
+    } else {
+        return;
     }
+    plic_update_mip(s);
 }
 
 static void plic_set_irq(void *opaque, int irq_num, int state)
