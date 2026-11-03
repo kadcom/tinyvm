@@ -50,6 +50,7 @@
 #include "iomem.h"
 #include "virtio.h"
 #include "machine.h"
+#include "uart16550.h"
 #ifdef CONFIG_FS_NET
 #include "fs_utils.h"
 #include "fs_wget.h"
@@ -556,7 +557,15 @@ void virt_machine_run(VirtMachine *m)
     FD_ZERO(&efds);
     fd_max = -1;
 #ifndef _WIN32
-    if (m->console_dev && virtio_console_can_write_data(m->console_dev)) {
+    if (m->console_uart) {
+        /* the UART owns the host terminal: the virtio console gets no input */
+        if (uart16550_get_write_len(m->console_uart) > 0) {
+            STDIODevice *s = m->console->opaque;
+            stdin_fd = s->stdin_fd;
+            FD_SET(stdin_fd, &rfds);
+            fd_max = stdin_fd;
+        }
+    } else if (m->console_dev && virtio_console_can_write_data(m->console_dev)) {
         STDIODevice *s = m->console->opaque;
         stdin_fd = s->stdin_fd;
         FD_SET(stdin_fd, &rfds);
@@ -584,7 +593,15 @@ void virt_machine_run(VirtMachine *m)
     }
     if (ret > 0) {
 #ifndef _WIN32
-        if (m->console_dev && FD_ISSET(stdin_fd, &rfds)) {
+        if (m->console_uart && FD_ISSET(stdin_fd, &rfds)) {
+            uint8_t buf[16];
+            int ret, len;
+            len = min_int(uart16550_get_write_len(m->console_uart),
+                          sizeof(buf));
+            ret = m->console->read_data(m->console->opaque, buf, len);
+            if (ret > 0)
+                uart16550_write_data(m->console_uart, buf, ret);
+        } else if (m->console_dev && FD_ISSET(stdin_fd, &rfds)) {
             uint8_t buf[128];
             int ret, len;
             len = virtio_console_get_write_len(m->console_dev);

@@ -2,6 +2,11 @@
  * JS emulator main
  * 
  * Copyright (c) 2016-2017 Fabrice Bellard
+ * Copyright (c) 2026 PT Baris Inovasi Ceria
+ *
+ * Modifications by PT Baris Inovasi Ceria are licensed under the
+ * GNU Affero General Public License v3.0 only (AGPL-3.0-only, see
+ * LICENSE). The original code remains under the MIT licence below.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -37,6 +42,7 @@
 #include "iomem.h"
 #include "virtio.h"
 #include "machine.h"
+#include "uart16550.h"
 #include "list.h"
 #include "fbuf.h"
 
@@ -308,7 +314,15 @@ void virt_machine_run(void *opaque)
     int delay, i;
     FBDevice *fb_dev;
     
-    if (m->console_dev && virtio_console_can_write_data(m->console_dev)) {
+    if (m->console_uart) {
+        /* the UART owns the terminal: the virtio console gets no input */
+        uint8_t buf[16];
+        int ret, len;
+        len = min_int(uart16550_get_write_len(m->console_uart), sizeof(buf));
+        ret = m->console->read_data(m->console->opaque, buf, len);
+        if (ret > 0)
+            uart16550_write_data(m->console_uart, buf, ret);
+    } else if (m->console_dev && virtio_console_can_write_data(m->console_dev)) {
         uint8_t buf[128];
         int ret, len;
         len = virtio_console_get_write_len(m->console_dev);

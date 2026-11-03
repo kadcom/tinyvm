@@ -2,6 +2,11 @@
 # TinyEMU emulator
 # 
 # Copyright (c) 2016-2018 Fabrice Bellard
+# Copyright (c) 2026 PT Baris Inovasi Ceria
+#
+# Modifications by PT Baris Inovasi Ceria are licensed under the
+# GNU Affero General Public License v3.0 only (AGPL-3.0-only, see
+# LICENSE). The original code remains under the MIT licence below.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -37,8 +42,8 @@ all: $(PROGS)
 JS_OBJS=jsemu.js.o softfp.js.o virtio.js.o fs.js.o fs_net.js.o fs_wget.js.o fs_utils.js.o simplefb.js.o pci.js.o json.js.o block_net.js.o
 JS_OBJS+=iomem.js.o cutils.js.o aes.js.o sha256.js.o
 
-RISCVEMU64_OBJS=$(JS_OBJS) riscv_cpu64.js.o riscv_machine.js.o machine.js.o
-RISCVEMU32_OBJS=$(JS_OBJS) riscv_cpu32.js.o riscv_machine.js.o machine.js.o
+RISCVEMU64_OBJS=$(JS_OBJS) riscv_cpu64.js.o riscv_machine.js.o uart16550.js.o machine.js.o
+RISCVEMU32_OBJS=$(JS_OBJS) riscv_cpu32.js.o riscv_machine.js.o uart16550.js.o machine.js.o
 
 js/riscvemu64.js: $(RISCVEMU64_OBJS) js/lib.js
 	$(EMCC) $(EMLDFLAGS_ASMJS) -o $@ $(RISCVEMU64_OBJS)

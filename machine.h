@@ -105,6 +105,7 @@ typedef struct {
 
     char *cmdline; /* bios or kernel command line */
     char *input_device; /* NULL means no input */
+    BOOL console_virtio_only; /* cfg console: "virtio" -> no UART */
     
     /* kernel, bios and other auxiliary files */
     VMFileEntry files[VM_FILE_COUNT];
@@ -117,6 +118,7 @@ typedef struct VirtMachine {
     /* console */
     VIRTIODevice *console_dev;
     CharacterDevice *console;
+    struct UART16550 *console_uart; /* if set, owns console input */
     /* graphics */
     FBDevice *fb_dev;
 } VirtMachine;

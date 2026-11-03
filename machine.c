@@ -283,6 +283,12 @@ static int virt_machine_parse_config(VirtMachineParams *p,
     if (str) {
         p->cmdline = cmdline_subst(str);
     }
+
+    /* console: "uart" (default, ns16550a = ttyS0) or "virtio" (hvc0 only) */
+    if (vm_get_str_opt(cfg, "console", &str) < 0)
+        goto tag_fail;
+    if (str && !strcmp(str, "virtio"))
+        p->console_virtio_only = TRUE;
     
     for(;;) {
         snprintf(buf1, sizeof(buf1), "drive%d", p->drive_count);

@@ -42,6 +42,7 @@
 #include "riscv_cpu.h"
 #include "virtio.h"
 #include "machine.h"
+#include "uart16550.h"
 
 /* RISCV machine */
 
@@ -65,6 +66,7 @@ typedef struct RISCVMachine {
     VIRTIODevice *mouse_dev;
 
     int virtio_count;
+    int virtio_irq[32]; /* PLIC line of each virtio-mmio device */
 } RISCVMachine;
 
 #define LOW_RAM_SIZE   0x00010000 /* 64KB */
@@ -76,6 +78,17 @@ typedef struct RISCVMachine {
 #define VIRTIO_BASE_ADDR 0x40010000
 #define VIRTIO_SIZE      0x1000
 #define VIRTIO_IRQ       1
+/* ns16550a console UART, same place as on QEMU "virt" */
+#define UART_BASE_ADDR   0x10000000
+#define UART_IRQ         10
+
+/* PLIC lines of the fixed devices are skipped when numbering virtio */
+static int next_free_irq(int irq)
+{
+    while (irq == UART_IRQ)
+        irq++;
+    return irq;
+}
 #define PLIC_BASE_ADDR 0x40100000
 #define PLIC_SIZE      0x00400000
 #define FRAMEBUFFER_BASE_ADDR 0x41000000
@@ -713,13 +726,26 @@ static int riscv_build_fdt(RISCVMachine *m, uint8_t *dst,
 
     fdt_end_node(s); /* plic */
     
+    if (m->common.console_uart) {
+        fdt_begin_node_num(s, "serial", UART_BASE_ADDR);
+        fdt_prop_str(s, "compatible", "ns16550a");
+        fdt_prop_tab_u64_2(s, "reg", UART_BASE_ADDR, UART16550_SIZE);
+        fdt_prop_u32(s, "clock-frequency", UART16550_CLOCK_HZ);
+        fdt_prop_u32(s, "reg-shift", 0);
+        fdt_prop_u32(s, "reg-io-width", 1);
+        tab[0] = plic_phandle;
+        tab[1] = UART_IRQ;
+        fdt_prop_tab_u32(s, "interrupts-extended", tab, 2);
+        fdt_end_node(s); /* serial */
+    }
+
     for(i = 0; i < m->virtio_count; i++) {
         fdt_begin_node_num(s, "virtio", VIRTIO_BASE_ADDR + i * VIRTIO_SIZE);
         fdt_prop_str(s, "compatible", "virtio,mmio");
         fdt_prop_tab_u64_2(s, "reg", VIRTIO_BASE_ADDR + i * VIRTIO_SIZE,
                            VIRTIO_SIZE);
         tab[0] = plic_phandle;
-        tab[1] = VIRTIO_IRQ + i;
+        tab[1] = m->virtio_irq[i];
         fdt_prop_tab_u32(s, "interrupts-extended", tab, 2);
         fdt_end_node(s); /* virtio */
     }
@@ -740,6 +766,12 @@ static int riscv_build_fdt(RISCVMachine *m, uint8_t *dst,
 
     fdt_begin_node(s, "chosen");
     fdt_prop_str(s, "bootargs", cmd_line ? cmd_line : "");
+    if (m->common.console_uart) {
+        /* used by OpenSBI (console) and by Linux "earlycon" without args */
+        char path[64];
+        snprintf(path, sizeof(path), "/soc/serial@%x", UART_BASE_ADDR);
+        fdt_prop_str(s, "stdout-path", path);
+    }
     if (kernel_size > 0) {
         fdt_prop_tab_u64(s, "riscv,kernel-start", kernel_start);
         fdt_prop_tab_u64(s, "riscv,kernel-end", kernel_start + kernel_size);
@@ -899,6 +931,13 @@ static VirtMachine *riscv_machine_init(const VirtMachineParams *p)
                         s, htif_read, htif_write, DEVIO_SIZE32);
     s->common.console = p->console;
 
+    /* the UART is the main console and owns the host terminal input */
+    if (p->console && !p->console_virtio_only) {
+        s->common.console_uart = uart16550_init(s->mem_map, UART_BASE_ADDR,
+                                                &s->plic_irq[UART_IRQ],
+                                                p->console);
+    }
+
     memset(vbus, 0, sizeof(*vbus));
     vbus->mem_map = s->mem_map;
     vbus->addr = VIRTIO_BASE_ADDR;
@@ -909,8 +948,8 @@ static VirtMachine *riscv_machine_init(const VirtMachineParams *p)
         vbus->irq = &s->plic_irq[irq_num];
         s->common.console_dev = virtio_console_init(vbus, p->console);
         vbus->addr += VIRTIO_SIZE;
-        irq_num++;
-        s->virtio_count++;
+        s->virtio_irq[s->virtio_count++] = irq_num++;
+        irq_num = next_free_irq(irq_num);
     }
     
     /* virtio net device */
@@ -919,8 +958,8 @@ static VirtMachine *riscv_machine_init(const VirtMachineParams *p)
         virtio_net_init(vbus, p->tab_eth[i].net);
         s->common.net = p->tab_eth[i].net;
         vbus->addr += VIRTIO_SIZE;
-        irq_num++;
-        s->virtio_count++;
+        s->virtio_irq[s->virtio_count++] = irq_num++;
+        irq_num = next_free_irq(irq_num);
     }
 
     /* virtio block device */
@@ -929,8 +968,8 @@ static VirtMachine *riscv_machine_init(const VirtMachineParams *p)
         blk_dev = virtio_block_init(vbus, p->tab_drive[i].block_dev);
         (void)blk_dev;
         vbus->addr += VIRTIO_SIZE;
-        irq_num++;
-        s->virtio_count++;
+        s->virtio_irq[s->virtio_count++] = irq_num++;
+        irq_num = next_free_irq(irq_num);
     }
 
     /* virtio filesystem */
@@ -942,8 +981,8 @@ static VirtMachine *riscv_machine_init(const VirtMachineParams *p)
         (void)fs_dev;
         //        virtio_set_debug(fs_dev, VIRTIO_DEBUG_9P);
         vbus->addr += VIRTIO_SIZE;
-        irq_num++;
-        s->virtio_count++;
+        s->virtio_irq[s->virtio_count++] = irq_num++;
+        irq_num = next_free_irq(irq_num);
     }
 
     if (p->display_device) {
@@ -968,15 +1007,15 @@ static VirtMachine *riscv_machine_init(const VirtMachineParams *p)
             s->keyboard_dev = virtio_input_init(vbus,
                                                 VIRTIO_INPUT_TYPE_KEYBOARD);
             vbus->addr += VIRTIO_SIZE;
-            irq_num++;
-            s->virtio_count++;
+            s->virtio_irq[s->virtio_count++] = irq_num++;
+            irq_num = next_free_irq(irq_num);
 
             vbus->irq = &s->plic_irq[irq_num];
             s->mouse_dev = virtio_input_init(vbus,
                                              VIRTIO_INPUT_TYPE_TABLET);
             vbus->addr += VIRTIO_SIZE;
-            irq_num++;
-            s->virtio_count++;
+            s->virtio_irq[s->virtio_count++] = irq_num++;
+            irq_num = next_free_irq(irq_num);
         } else {
             vm_error("unsupported input device: %s\n", p->input_device);
             exit(1);
