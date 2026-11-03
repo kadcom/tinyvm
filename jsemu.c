@@ -227,11 +227,15 @@ static void init_vm_drive(void *arg)
     VirtMachineParams *p = s->p;
 
     if (p->drive_count > 0) {
+        char *fname;
         assert(p->drive_count == 1);
+        /* relative to the config file, as for the other files and in temu */
+        fname = get_file_path(p->cfg_filename, p->tab_drive[0].filename);
         p->tab_drive[0].block_dev =
-            block_device_init_http(p->tab_drive[0].filename,
+            block_device_init_http(fname,
                                    131072,
                                    init_vm, s);
+        free(fname);
     } else {
         init_vm(s);
     }
