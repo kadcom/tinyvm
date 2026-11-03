@@ -1,10 +1,10 @@
-# TinyEMU build.
+# TinyVM build.
 # Copyright (c) 2026 PT Baris Inovasi Ceria
 # SPDX-License-Identifier: AGPL-3.0-only
 #
 #   bazel build //:temu                 native emulator (Linux, macOS)
 #   bazel build //:splitimg //:build_filelist
-#   bazel build //:riscvemu64_wasm      js/riscvemu64-wasm.js + .wasm for the browser
+#   bazel build //:tinyvm_wasm          js/riscvemu64-wasm.js + .wasm for the browser
 
 load("@emsdk//emscripten_toolchain:wasm_rules.bzl", "wasm_cc_binary")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
@@ -142,7 +142,7 @@ WASM_EXPORTS = [
 ]
 
 cc_binary(
-    name = "riscvemu64_bin",
+    name = "tinyvm_wasm_bin",
     srcs = [
         "aes.c",
         "block_net.c",
@@ -185,25 +185,25 @@ cc_binary(
 )
 
 wasm_cc_binary(
-    name = "riscvemu64_raw",
-    cc_target = ":riscvemu64_bin",
+    name = "tinyvm_wasm_raw",
+    cc_target = ":tinyvm_wasm_bin",
     outputs = [
-        "raw/riscvemu64_bin.js",
-        "raw/riscvemu64_bin.wasm",
+        "raw/tinyvm_wasm_bin.js",
+        "raw/tinyvm_wasm_bin.wasm",
     ],
     tags = ["manual"],
 )
 
 # The upstream page loads riscvemu64-wasm.js, which loads riscvemu64-wasm.wasm.
 genrule(
-    name = "riscvemu64_wasm",
-    srcs = [":riscvemu64_raw"],
+    name = "tinyvm_wasm",
+    srcs = [":tinyvm_wasm_raw"],
     outs = [
         "js/riscvemu64-wasm.js",
         "js/riscvemu64-wasm.wasm",
     ],
     cmd = "for f in $(SRCS); do case $$f in " +
-          "*.js) sed -e 's/riscvemu64_bin\\.wasm/riscvemu64-wasm.wasm/g' $$f > $(location js/riscvemu64-wasm.js);; " +
+          "*.js) sed -e 's/tinyvm_wasm_bin\\.wasm/riscvemu64-wasm.wasm/g' $$f > $(location js/riscvemu64-wasm.js);; " +
           "*.wasm) cp $$f $(location js/riscvemu64-wasm.wasm);; esac; done",
     tags = ["manual"],
 )

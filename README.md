@@ -1,19 +1,20 @@
-# TinyEMU
+# TinyVM
 
 This is where ClairEmu starts.
 
 Written by Didiet Noor.
 
-![Terminal: Debian 13 riscv64 booting on native temu to the login prompt, then a root shell running uname -a (Linux 6.12.113+deb13-riscv64) and cat /etc/debian_version (13.7)](https://cdn.kadcom.dev/tinyemu/readme/boot-20261103.png)
+![Terminal: Debian 13 riscv64 booting on native temu (TinyVM) to the login prompt, then a root shell running uname -a (Linux 6.12.113+deb13-riscv64) and cat /etc/debian_version (13.7)](https://cdn.kadcom.dev/tinyvm/readme/boot-20261103.png)
 
 [Try it live](https://emu.kadcom.dev): ClairEmu, which grew out of this code.
 
 ## What this is
 
-[TinyEMU](https://bellard.org/tinyemu/) 2019-12-21 by Fabrice Bellard, imported unmodified in
-the first commit, plus the small fixes needed to boot a modern Debian riscv64 (Debian 13,
-kernel 6.12, systemd) to `login:` on OpenSBI firmware. The emulator runs natively on Linux and
-macOS and in the browser as WebAssembly. Each fix is its own commit, describing what changed,
+TinyVM is derived from TinyEMU 2019-12-21 by Fabrice Bellard (bellard.org/tinyemu), MIT
+licensed. The upstream release is imported unmodified in the first commit, followed by the
+small fixes needed to boot a modern Debian riscv64 (Debian 13, kernel 6.12, systemd) to
+`login:` on OpenSBI firmware. The emulator (`temu`) runs natively on Linux and macOS and in
+the browser as WebAssembly. Each fix is its own commit, describing what changed,
 why, and how the problem showed up.
 
 | Commit | Change |
@@ -32,7 +33,7 @@ why, and how the problem showed up.
 | virtio-blk: per-drive read-only mode and FLUSH | `mode: "ro" \| "rw" \| "snapshot"` per drive, `VIRTIO_BLK_F_RO`, `VIRTIO_BLK_F_FLUSH` |
 | Device tree: RNG seed | `/chosen/rng-seed` from the host, the CRNG is ready at once |
 | Add a Goldfish RTC | the guest starts with the correct date and time |
-| Bazel build (native, WebAssembly) | `//:temu`, `//:riscvemu64_wasm`; `js/lib.js` for current emscripten |
+| Bazel build (native, WebAssembly) | `//:temu`, `//:tinyvm_wasm`; `js/lib.js` for current emscripten |
 | Add OpenSBI v1.7 fw_jump firmware | SBI firmware for the Debian kernel (`firmware/`) |
 | jsemu: resolve the drive file relative to the config file | the browser finds the disk next to its config |
 
@@ -44,7 +45,7 @@ Bazel with bzlmod (version in `.bazelversion`):
 
 ```sh
 bazel build //:temu //:splitimg //:build_filelist   # native, Linux and macOS
-bazel build //:riscvemu64_wasm                       # bazel-bin/js/riscvemu64-wasm.{js,wasm}
+bazel build //:tinyvm_wasm                          # bazel-bin/js/riscvemu64-wasm.{js,wasm}
 ```
 
 The WebAssembly build uses the hermetic emscripten toolchain of the `emsdk` Bazel module, so
@@ -105,7 +106,7 @@ make LLVM=1 PLATFORM=generic FW_JUMP=y \
      FW_TEXT_START=0x80000000 FW_JUMP_ADDR=0x80200000 FW_JUMP_FDT_ADDR=0x87e00000
 ```
 
-TinyEMU loads the kernel at the start of RAM plus the firmware size rounded up to 2 MB
+TinyVM loads the kernel at the start of RAM plus the firmware size rounded up to 2 MB
 (`0x80200000`) and the initrd at RAM + 128 MB (`0x88000000`); the device tree goes just below
 the initrd. Source commit and build notes are in `firmware/README.txt`.
 
@@ -124,5 +125,6 @@ only (`LICENSE`).
 
 ## Credit
 
-TinyEMU and its design are by Fabrice Bellard ([bellard.org/tinyemu](https://bellard.org/tinyemu/)).
-This tree adds the fixes listed above.
+TinyVM is derived from TinyEMU 2019-12-21 by Fabrice Bellard
+([bellard.org/tinyemu](https://bellard.org/tinyemu/)), MIT licensed. TinyEMU and its design are
+his; this tree adds the fixes listed above.
