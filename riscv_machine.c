@@ -43,6 +43,7 @@
 #include "virtio.h"
 #include "machine.h"
 #include "uart16550.h"
+#include "goldfish_rtc.h"
 #include <unistd.h>
 #ifdef __APPLE__
 #include <sys/random.h> /* getentropy() */
@@ -73,6 +74,7 @@ typedef struct RISCVMachine {
     VIRTIODevice *mouse_dev;
 
     int virtio_count;
+    GoldfishRTC *rtc;
     int virtio_irq[32]; /* PLIC line of each virtio-mmio device */
 } RISCVMachine;
 
@@ -88,11 +90,14 @@ typedef struct RISCVMachine {
 /* ns16550a console UART, same place as on QEMU "virt" */
 #define UART_BASE_ADDR   0x10000000
 #define UART_IRQ         10
+/* Goldfish RTC (Linux CONFIG_RTC_DRV_GOLDFISH=y), as on QEMU "virt" */
+#define RTC_BASE_ADDR    0x00101000
+#define RTC_IRQ          11
 
 /* PLIC lines of the fixed devices are skipped when numbering virtio */
 static int next_free_irq(int irq)
 {
-    while (irq == UART_IRQ)
+    while (irq == UART_IRQ || irq == RTC_IRQ)
         irq++;
     return irq;
 }
@@ -796,6 +801,14 @@ static int riscv_build_fdt(RISCVMachine *m, uint8_t *dst,
 
     fdt_end_node(s); /* plic */
     
+    fdt_begin_node_num(s, "rtc", RTC_BASE_ADDR);
+    fdt_prop_str(s, "compatible", "google,goldfish-rtc");
+    fdt_prop_tab_u64_2(s, "reg", RTC_BASE_ADDR, GOLDFISH_RTC_SIZE);
+    tab[0] = plic_phandle;
+    tab[1] = RTC_IRQ;
+    fdt_prop_tab_u32(s, "interrupts-extended", tab, 2);
+    fdt_end_node(s); /* rtc */
+
     if (m->common.console_uart) {
         fdt_begin_node_num(s, "serial", UART_BASE_ADDR);
         fdt_prop_str(s, "compatible", "ns16550a");
@@ -1010,6 +1023,9 @@ static VirtMachine *riscv_machine_init(const VirtMachineParams *p)
                         s, htif_read, htif_write, DEVIO_SIZE32);
     s->common.console = p->console;
 
+    s->rtc = goldfish_rtc_init(s->mem_map, RTC_BASE_ADDR,
+                               &s->plic_irq[RTC_IRQ]);
+
     /* the UART is the main console and owns the host terminal input */
     if (p->console && !p->console_virtio_only) {
         s->common.console_uart = uart16550_init(s->mem_map, UART_BASE_ADDR,
@@ -1129,7 +1145,10 @@ static int riscv_machine_get_sleep_duration(VirtMachine *s1, int delay)
     RISCVCPUState *s = m->cpu_state;
     int64_t delay1;
     
-    /* wait for an event: the only asynchronous event is the RTC timer */
+    /* RTC alarm */
+    delay = goldfish_rtc_poll(m->rtc, delay);
+
+    /* wait for an event: the timer interrupt */
     if (!(riscv_cpu_get_mip(s) & MIP_MTIP)) {
         delay1 = m->timecmp - rtc_get_time(m);
         if (delay1 <= 0) {

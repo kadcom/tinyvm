@@ -107,7 +107,7 @@ LDFLAGS+=-mwindows
 endif
 endif
 
-EMU_OBJS+=riscv_machine.o uart16550.o softfp.o riscv_cpu32.o riscv_cpu64.o
+EMU_OBJS+=riscv_machine.o uart16550.o goldfish_rtc.o softfp.o riscv_cpu32.o riscv_cpu64.o
 ifdef CONFIG_INT128
 CFLAGS+=-DCONFIG_RISCV_MAX_XLEN=128
 EMU_OBJS+=riscv_cpu128.o
