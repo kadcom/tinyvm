@@ -20,6 +20,8 @@ small fixes needed to boot a modern Debian riscv64 (Debian 13, kernel 6.12, syst
 the browser as WebAssembly. Each fix is its own commit, describing what changed,
 why, and how the problem showed up.
 
+[docs/how-it-works.md](docs/how-it-works.md) explains how TinyVM boots Linux, from `main()` to the main loop.
+
 | Commit | Change |
 | --- | --- |
 | Remove the x86 emulator | RISC-V only: the KVM x86 machine and its devices are gone |
